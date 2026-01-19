@@ -97,13 +97,13 @@
         // --- PASTE YOUR FIREBASE CONFIG HERE ---
         // It will look like: const firebaseConfig = { apiKey: "...", ... };
         const firebaseConfig = {
-            // apiKey: "YOUR_API_KEY_HERE",
-            // authDomain: "your-project.firebaseapp.com",
-            // projectId: "your-project-id",
-            // storageBucket: "your-project.appspot.com",
-            // messagingSenderId: "...",
-            // appId: "..."
-        };
+  apiKey: "AIzaSyA35XHx_Ar_F2amnn8LlMCuuTOLovO8ilk",
+  authDomain: "shift-system-4f00b.firebaseapp.com",
+  projectId: "shift-system-4f00b",
+  storageBucket: "shift-system-4f00b.firebasestorage.app",
+  messagingSenderId: "190445401565",
+  appId: "1:190445401565:web:6405bf40d236c55dd23234"
+};
         // ---------------------------------------
 
         if (firebaseConfig.apiKey) {
@@ -1316,18 +1316,22 @@
                     const savedTab = localStorage.getItem('shift_active_tab'); 
                     if (savedTab) setActiveTab(savedTab);
 
-                    // 1. Initial Load from LocalStorage (Fast)
+                    // 1. Initial Load from LocalStorage (Fallback only if no Cloud config)
                     const localData = localStorage.getItem('shift_financial_data');
                     const localHistory = localStorage.getItem('shift_bill_history');
                     const localSettings = localStorage.getItem('shift_app_settings');
                     
-                    if (localData) try { setEntries(JSON.parse(localData)); } catch(e) {}
-                    if (localHistory) try { setBillHistory(JSON.parse(localHistory)); } catch(e) {}
+                    // Only load local data if we don't have Firebase or while waiting
+                    if (!window.db) {
+                        if (localData) try { setEntries(JSON.parse(localData)); } catch(e) {}
+                        if (localHistory) try { setBillHistory(JSON.parse(localHistory)); } catch(e) {}
+                    }
+                    
                     if (localSettings) {
                         try { 
                             const s = JSON.parse(localSettings);
                             setSettings(s);
-                            applyFavicon(s.favicon); // Apply favicon immediately from local
+                            applyFavicon(s.favicon); 
                         } catch(e) {}
                     }
 
@@ -1340,7 +1344,7 @@
                         const unsubscribeEntries = window.fs.onSnapshot(q, (snapshot) => {
                             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                             setEntries(data);
-                            localStorage.setItem('shift_financial_data', JSON.stringify(data));
+                            // NOTE: We do NOT save to localStorage here anymore as requested
                         });
 
                         // Bill History
@@ -1348,7 +1352,6 @@
                         const unsubscribeHistory = window.fs.onSnapshot(qHistory, (snapshot) => {
                             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                             setBillHistory(data);
-                            localStorage.setItem('shift_bill_history', JSON.stringify(data));
                         });
 
                         // Settings (Logos, Theme, Favicon)
@@ -1357,8 +1360,8 @@
                             if (doc.exists()) {
                                 const newSettings = doc.data();
                                 setSettings(newSettings);
+                                // We still cache settings locally for the splash screen to work before DB loads
                                 localStorage.setItem('shift_app_settings', JSON.stringify(newSettings));
-                                // Also update specific keys for Root to find easily without parsing
                                 if(newSettings.splashLogo) localStorage.setItem('shift_splash_logo', newSettings.splashLogo);
                                 if(newSettings.favicon) applyFavicon(newSettings.favicon);
                             }
@@ -1376,16 +1379,13 @@
 
                 const handleUpdateSettings = async (key, value) => {
                     const newSettings = { ...settings, [key]: value };
-                    setSettings(newSettings); // Optimistic UI update
+                    setSettings(newSettings); 
                     
-                    // Apply visual changes immediately
                     if (key === 'favicon') applyFavicon(value);
                     if (key === 'splashLogo') localStorage.setItem('shift_splash_logo', value);
 
-                    // Save to LocalStorage
                     localStorage.setItem('shift_app_settings', JSON.stringify(newSettings));
 
-                    // Save to Firebase if available
                     if (window.db && window.fs) {
                         try {
                             await window.fs.setDoc(window.fs.doc(window.db, "config", "app_settings"), newSettings, { merge: true });
@@ -1396,11 +1396,10 @@
                 const handleSaveEntry = async (entry) => {
                     if (window.db && window.fs) {
                         try {
-                            // Use setDoc to ensure ID consistency or overwrite logic
                             await window.fs.setDoc(window.fs.doc(window.db, "transactions", entry.id), entry);
                         } catch (e) { alert("Error saving to cloud. Check console."); }
                     } else {
-                        // Local fallback
+                        // Local fallback only if no Cloud
                         const newEntries = editingEntry 
                             ? entries.map(e => e.id === entry.id ? entry : e)
                             : [entry, ...entries];
@@ -1444,7 +1443,16 @@
                 const handleClearAll = async () => { 
                     if (confirm('WARNING: Delete ALL data? This cannot be undone.')) {
                         if (window.db && window.fs) {
-                            alert("Bulk delete is restricted in cloud mode for safety.");
+                            // In cloud mode, we delete docs one by one since client SDK lacks clear()
+                            const batchSize = 50;
+                            // Naive approach for "easy way": just delete what is in state
+                            entries.forEach(async (e) => {
+                                try { await window.fs.deleteDoc(window.fs.doc(window.db, "transactions", e.id)); } catch(err){}
+                            });
+                            billHistory.forEach(async (h) => {
+                                try { await window.fs.deleteDoc(window.fs.doc(window.db, "bill_history", h.id)); } catch(err){}
+                            });
+                            alert("Deletion started. It may take a moment to reflect.");
                         } else {
                             setEntries([]); 
                             setBillHistory([]);
