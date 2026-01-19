@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SHIFT Financial Report</title>
     
+    <!-- Dynamic Favicon Links (Will be updated by JS) -->
+    <link rel="icon" href="data:,">
+    <link rel="apple-touch-icon" href="data:,">
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -87,19 +91,19 @@
     <!-- FIREBASE SETUP -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         // --- PASTE YOUR FIREBASE CONFIG HERE ---
         // It will look like: const firebaseConfig = { apiKey: "...", ... };
- const firebaseConfig = {
-  apiKey: "AIzaSyA35XHx_Ar_F2amnn8LlMCuuTOLovO8ilk",
-  authDomain: "shift-system-4f00b.firebaseapp.com",
-  projectId: "shift-system-4f00b",
-  storageBucket: "shift-system-4f00b.firebasestorage.app",
-  messagingSenderId: "190445401565",
-  appId: "1:190445401565:web:6405bf40d236c55dd23234"
-};
+        const firebaseConfig = {
+            // apiKey: "YOUR_API_KEY_HERE",
+            // authDomain: "your-project.firebaseapp.com",
+            // projectId: "your-project-id",
+            // storageBucket: "your-project.appspot.com",
+            // messagingSenderId: "...",
+            // appId: "..."
+        };
         // ---------------------------------------
 
         if (firebaseConfig.apiKey) {
@@ -109,7 +113,7 @@
                 window.auth = getAuth(app);
                 
                 // Expose Firestore functions to global scope for the React app
-                window.fs = { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc };
+                window.fs = { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc, getDoc };
                 
                 console.log("Firebase initialized successfully");
                 
@@ -173,6 +177,7 @@
             const Clock = (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></IconBase>;
             const Cloud = (p) => <IconBase {...p}><path d="M17.5 19c0-3.037-2.463-5.5-5.5-5.5S6.5 15.963 6.5 19H2c0-5.523 4.477-10 10-10 .473 0 .937.034 1.39.1C13.882 4.12 18.397 1 23 6c0 5.523-4.477 10-10 10h-4.5"/></IconBase>;
             const CloudOff = (p) => <IconBase {...p}><path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 7h1.8a5 5 0 0 0 1.8 9h5.6"/><line x1="1" x2="23" y1="1" y2="23"/></IconBase>;
+            const Globe = (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></IconBase>;
 
             // --- Helper Functions ---
             const formatNumberString = (val) => {
@@ -186,6 +191,25 @@
             const safeNum = (val) => {
                 if (typeof val === 'string') return Number(val.replace(/,/g, '')) || 0;
                 return Number(val) || 0;
+            };
+            
+            const applyFavicon = (url) => {
+                if (!url) return;
+                let link = document.querySelector("link[rel~='icon']");
+                if (!link) {
+                    link = document.createElement('link');
+                    link.rel = 'icon';
+                    document.head.appendChild(link);
+                }
+                link.href = url;
+                
+                let appleLink = document.querySelector("link[rel~='apple-touch-icon']");
+                if (!appleLink) {
+                    appleLink = document.createElement('link');
+                    appleLink.rel = 'apple-touch-icon';
+                    document.head.appendChild(appleLink);
+                }
+                appleLink.href = url;
             };
 
             // --- Components ---
@@ -256,14 +280,12 @@
             };
 
             // --- LOGIN PAGE COMPONENT ---
-            const LoginPage = ({ onLogin, onUpdateSplashLogo }) => {
+            const LoginPage = ({ onLogin }) => {
                 const [username, setUsername] = useState('');
                 const [password, setPassword] = useState('');
                 const [error, setError] = useState('');
                 const [showPassword, setShowPassword] = useState(false);
                 const [rememberMe, setRememberMe] = useState(false);
-                const [showSplashSettings, setShowSplashSettings] = useState(false);
-                const fileInputRef = useRef(null);
 
                 const handleSubmit = (e) => {
                     e.preventDefault();
@@ -275,39 +297,8 @@
                     }
                 };
                 
-                const handleLogoUpload = (e) => {
-                    const file = e.target.files[0];
-                    if (file && file.size < 500000) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            onUpdateSplashLogo(reader.result);
-                            alert("Splash screen logo updated successfully!");
-                            setShowSplashSettings(false);
-                        };
-                        reader.readAsDataURL(file);
-                    } else if (file) alert("File too large (max 500KB).");
-                };
-
                 return (
                     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4 bg-[url('https://www.transparenttextures.com/patterns/subtle-white-feathers.png')] relative">
-                        <button 
-                            onClick={() => setShowSplashSettings(!showSplashSettings)}
-                            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-white/50 rounded-full transition-all z-10"
-                        >
-                            <Settings size={24} />
-                        </button>
-
-                        {showSplashSettings && (
-                            <div className="absolute top-16 right-4 bg-white p-4 rounded-lg shadow-xl border border-slate-200 z-20 w-64 animate-fade-in">
-                                <h3 className="font-bold text-slate-700 mb-2 border-b pb-1 text-sm">Splash Screen Settings</h3>
-                                <p className="text-xs text-slate-500 mb-3">Upload a custom logo to display on the splash screen.</p>
-                                <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" />
-                                <Button onClick={() => fileInputRef.current.click()} variant="secondary" className="w-full text-xs">
-                                    <Upload size={14} /> Upload Logo
-                                </Button>
-                            </div>
-                        )}
-
                         <div className="max-w-md w-full bg-white rounded-xl shadow-2xl overflow-hidden border border-slate-200 z-0">
                             <div className="bg-gradient-to-r from-blue-900 to-slate-900 p-8 text-center border-b-4 border-yellow-500">
                                 <div className="mx-auto bg-white/10 w-16 h-16 rounded-full flex items-center justify-center mb-4 border border-white/20">
@@ -1201,9 +1192,10 @@
                 );
             };
 
-            const SettingsPage = ({ settings, updateSettings, onClear, onImport, entries, themeColor, onUpdateSplashLogo, currentSplashLogo, onLogout }) => {
+            const SettingsPage = ({ settings, updateSettings, onClear, onImport, entries, onLogout }) => {
                 const fileInputRef = useRef(null);
                 const splashInputRef = useRef(null);
+                const faviconInputRef = useRef(null);
                 const importFileRef = useRef(null);
                 const [isFirebase, setIsFirebase] = useState(false);
 
@@ -1211,23 +1203,11 @@
                     if (window.db) setIsFirebase(true);
                 }, []);
                 
-                const handleFileChange = (e) => {
+                const handleFileChange = (e, type) => {
                     const file = e.target.files[0];
                     if (file && file.size < 500000) {
                         const reader = new FileReader();
-                        reader.onloadend = () => updateSettings('logo', reader.result);
-                        reader.readAsDataURL(file);
-                    } else if (file) alert("File too large (max 500KB).");
-                };
-
-                const handleSplashLogoChange = (e) => {
-                    const file = e.target.files[0];
-                    if (file && file.size < 500000) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            onUpdateSplashLogo(reader.result);
-                            alert("Splash screen logo updated!");
-                        };
+                        reader.onloadend = () => updateSettings(type, reader.result);
                         reader.readAsDataURL(file);
                     } else if (file) alert("File too large (max 500KB).");
                 };
@@ -1268,24 +1248,39 @@
 
                         <Card className="p-6">
                             <h3 className="font-bold mb-4 flex items-center gap-2"><Palette size={20} className="text-blue-500" /> Branding</h3>
+                            
                             <div className="flex gap-4 items-center mb-6 border-b border-slate-100 pb-6">
                                 <div className="h-20 w-20 rounded bg-slate-100 flex items-center justify-center overflow-hidden border">{settings.logo ? <img src={settings.logo} className="h-full w-full object-contain" /> : <ImageIcon className="text-slate-400" />}</div>
                                 <div className="flex flex-col gap-2">
                                     <span className="text-sm font-bold text-slate-600">Dashboard Logo</span>
-                                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+                                    <input type="file" ref={fileInputRef} onChange={(e) => handleFileChange(e, 'logo')} className="hidden" />
                                     <Button variant="secondary" onClick={() => fileInputRef.current.click()}>Upload Logo</Button>
                                     {settings.logo && <button onClick={() => updateSettings('logo', null)} className="text-xs text-red-500">Remove</button>}
                                 </div>
                             </div>
                             
-                            <div className="flex gap-4 items-center mb-6">
+                            <div className="flex gap-4 items-center mb-6 border-b border-slate-100 pb-6">
                                 <div className="h-20 w-20 rounded bg-slate-900 flex items-center justify-center overflow-hidden border">
-                                    {currentSplashLogo ? <img src={currentSplashLogo} className="h-full w-full object-contain" /> : <ImageIcon className="text-slate-600" />}
+                                    {settings.splashLogo ? <img src={settings.splashLogo} className="h-full w-full object-contain" /> : <ImageIcon className="text-slate-600" />}
                                 </div>
                                 <div className="flex flex-col gap-2">
                                     <span className="text-sm font-bold text-slate-600">Splash Screen Logo</span>
-                                    <input type="file" ref={splashInputRef} onChange={handleSplashLogoChange} className="hidden" />
+                                    <input type="file" ref={splashInputRef} onChange={(e) => handleFileChange(e, 'splashLogo')} className="hidden" />
                                     <Button variant="secondary" onClick={() => splashInputRef.current.click()}>Upload Splash Logo</Button>
+                                    {settings.splashLogo && <button onClick={() => updateSettings('splashLogo', null)} className="text-xs text-red-500">Remove</button>}
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4 items-center mb-6 border-b border-slate-100 pb-6">
+                                <div className="h-20 w-20 rounded bg-slate-50 flex items-center justify-center overflow-hidden border">
+                                    {settings.favicon ? <img src={settings.favicon} className="h-10 w-10 object-contain" /> : <Globe className="text-slate-400" />}
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-sm font-bold text-slate-600">App Icon / Favicon</span>
+                                    <p className="text-xs text-slate-500">Used for browser tab and mobile home screen icon.</p>
+                                    <input type="file" ref={faviconInputRef} onChange={(e) => handleFileChange(e, 'favicon')} className="hidden" />
+                                    <Button variant="secondary" onClick={() => faviconInputRef.current.click()}>Upload Icon</Button>
+                                    {settings.favicon && <button onClick={() => updateSettings('favicon', null)} className="text-xs text-red-500">Remove</button>}
                                 </div>
                             </div>
 
@@ -1307,94 +1302,110 @@
             };
 
             // --- Main App (The Financial System) ---
-            const DashboardApp = ({ onUpdateSplashLogo, splashLogo, onLogout }) => {
+            const DashboardApp = ({ onLogout }) => {
                 const [activeTab, setActiveTab] = useState('dashboard');
                 const [entries, setEntries] = useState([]);
                 const [billHistory, setBillHistory] = useState([]);
                 const [editingEntry, setEditingEntry] = useState(null);
                 const [viewingEntry, setViewingEntry] = useState(null);
                 const [printData, setPrintData] = useState(null); 
-                const [settings, setSettings] = useState({ themeColor: '#3b82f6', logo: null });
+                const [settings, setSettings] = useState({ themeColor: '#3b82f6', logo: null, splashLogo: null, favicon: null });
 
+                // Load Settings & Data
                 useEffect(() => {
-                    // Check if Firebase is active
+                    const savedTab = localStorage.getItem('shift_active_tab'); 
+                    if (savedTab) setActiveTab(savedTab);
+
+                    // 1. Initial Load from LocalStorage (Fast)
+                    const localData = localStorage.getItem('shift_financial_data');
+                    const localHistory = localStorage.getItem('shift_bill_history');
+                    const localSettings = localStorage.getItem('shift_app_settings');
+                    
+                    if (localData) try { setEntries(JSON.parse(localData)); } catch(e) {}
+                    if (localHistory) try { setBillHistory(JSON.parse(localHistory)); } catch(e) {}
+                    if (localSettings) {
+                        try { 
+                            const s = JSON.parse(localSettings);
+                            setSettings(s);
+                            applyFavicon(s.favicon); // Apply favicon immediately from local
+                        } catch(e) {}
+                    }
+
+                    // 2. Firebase Sync
                     if (window.db && window.fs) {
-                        console.log("Using Firebase Firestore");
+                        console.log("Syncing with Firebase...");
                         
-                        // Listen to Transactions
+                        // Transactions
                         const q = window.fs.query(window.fs.collection(window.db, "transactions"), window.fs.orderBy("date", "desc"));
                         const unsubscribeEntries = window.fs.onSnapshot(q, (snapshot) => {
                             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                             setEntries(data);
+                            localStorage.setItem('shift_financial_data', JSON.stringify(data));
                         });
 
-                        // Listen to Bill History
+                        // Bill History
                         const qHistory = window.fs.query(window.fs.collection(window.db, "bill_history"), window.fs.orderBy("date", "desc"));
                         const unsubscribeHistory = window.fs.onSnapshot(qHistory, (snapshot) => {
                             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                             setBillHistory(data);
+                            localStorage.setItem('shift_bill_history', JSON.stringify(data));
+                        });
+
+                        // Settings (Logos, Theme, Favicon)
+                        const settingsDoc = window.fs.doc(window.db, "config", "app_settings");
+                        const unsubscribeSettings = window.fs.onSnapshot(settingsDoc, (doc) => {
+                            if (doc.exists()) {
+                                const newSettings = doc.data();
+                                setSettings(newSettings);
+                                localStorage.setItem('shift_app_settings', JSON.stringify(newSettings));
+                                // Also update specific keys for Root to find easily without parsing
+                                if(newSettings.splashLogo) localStorage.setItem('shift_splash_logo', newSettings.splashLogo);
+                                if(newSettings.favicon) applyFavicon(newSettings.favicon);
+                            }
                         });
 
                         return () => {
                             unsubscribeEntries();
                             unsubscribeHistory();
+                            unsubscribeSettings();
                         };
-                    } else {
-                        console.log("Using LocalStorage");
-                        const d = localStorage.getItem('shift_financial_data');
-                        const h = localStorage.getItem('shift_bill_history');
-                        if (d) try { setEntries(JSON.parse(d)); } catch(e) {}
-                        if (h) try { setBillHistory(JSON.parse(h)); } catch(e) {}
                     }
                 }, []);
 
-                // Load local settings (Logo/Theme/Tab state are local prefs)
-                useEffect(() => {
-                    const s = localStorage.getItem('shift_app_settings');
-                    const savedTab = localStorage.getItem('shift_active_tab'); 
-                    if (s) try { setSettings(JSON.parse(s)); } catch(e) {}
-                    if (savedTab) setActiveTab(savedTab);
-                }, []);
-
-                // Save to LocalStorage if NOT using Firebase (Fallback mode)
-                useEffect(() => { 
-                    if (!window.db) localStorage.setItem('shift_financial_data', JSON.stringify(entries)); 
-                }, [entries]);
-                
-                useEffect(() => { 
-                    if (!window.db) localStorage.setItem('shift_bill_history', JSON.stringify(billHistory)); 
-                }, [billHistory]);
-
-                // Always save settings locally
-                useEffect(() => { localStorage.setItem('shift_app_settings', JSON.stringify(settings)); }, [settings]);
                 useEffect(() => { localStorage.setItem('shift_active_tab', activeTab); }, [activeTab]);
+
+                const handleUpdateSettings = async (key, value) => {
+                    const newSettings = { ...settings, [key]: value };
+                    setSettings(newSettings); // Optimistic UI update
+                    
+                    // Apply visual changes immediately
+                    if (key === 'favicon') applyFavicon(value);
+                    if (key === 'splashLogo') localStorage.setItem('shift_splash_logo', value);
+
+                    // Save to LocalStorage
+                    localStorage.setItem('shift_app_settings', JSON.stringify(newSettings));
+
+                    // Save to Firebase if available
+                    if (window.db && window.fs) {
+                        try {
+                            await window.fs.setDoc(window.fs.doc(window.db, "config", "app_settings"), newSettings, { merge: true });
+                        } catch(e) { console.error("Error saving settings to cloud:", e); }
+                    }
+                };
 
                 const handleSaveEntry = async (entry) => {
                     if (window.db && window.fs) {
                         try {
-                            if (editingEntry) {
-                                // Update existing
-                                const docRef = window.fs.doc(window.db, "transactions", entry.id);
-                                await window.fs.updateDoc(docRef, entry);
-                            } else {
-                                // Add new (let Firestore generate ID, or use timestamp as ID)
-                                // We use setDoc with a specific ID to keep IDs consistent if we want, or addDoc
-                                // Here we used timestamp ID in local, let's stick to that for simplicity or let Firestore handle it.
-                                // If we use addDoc, ID is generated. If we use setDoc, we pick ID.
-                                // entry.id is currently Date.now().toString().
-                                await window.fs.setDoc(window.fs.doc(window.db, "transactions", entry.id), entry);
-                            }
-                        } catch (e) {
-                            console.error("Error saving to Firebase: ", e);
-                            alert("Error saving to cloud. Check console.");
-                        }
+                            // Use setDoc to ensure ID consistency or overwrite logic
+                            await window.fs.setDoc(window.fs.doc(window.db, "transactions", entry.id), entry);
+                        } catch (e) { alert("Error saving to cloud. Check console."); }
                     } else {
-                        // LocalStorage Fallback
-                        if (editingEntry) {
-                            setEntries(entries.map(e => e.id === entry.id ? entry : e));
-                        } else {
-                            setEntries([entry, ...entries]);
-                        }
+                        // Local fallback
+                        const newEntries = editingEntry 
+                            ? entries.map(e => e.id === entry.id ? entry : e)
+                            : [entry, ...entries];
+                        setEntries(newEntries);
+                        localStorage.setItem('shift_financial_data', JSON.stringify(newEntries));
                     }
                     setEditingEntry(null);
                     setActiveTab('dashboard');
@@ -1403,26 +1414,23 @@
                 const handleSaveBillCount = async (record) => {
                     if (window.db && window.fs) {
                         try {
-                            // record.id is mostly timestamp number
                             await window.fs.setDoc(window.fs.doc(window.db, "bill_history", record.id.toString()), record);
-                        } catch (e) {
-                            console.error("Error saving bill history: ", e);
-                        }
+                        } catch (e) { console.error("Error saving bill history: ", e); }
                     } else {
-                        setBillHistory(prev => [record, ...prev].slice(0, 50)); 
+                        const newHistory = [record, ...billHistory].slice(0, 50);
+                        setBillHistory(newHistory);
+                        localStorage.setItem('shift_bill_history', JSON.stringify(newHistory));
                     }
                 };
 
                 const handleDeleteEntry = async (id) => {
                     if (confirm('Are you sure you want to delete this record?')) {
                         if (window.db && window.fs) {
-                            try {
-                                await window.fs.deleteDoc(window.fs.doc(window.db, "transactions", id));
-                            } catch (e) {
-                                console.error("Error deleting: ", e);
-                            }
+                            try { await window.fs.deleteDoc(window.fs.doc(window.db, "transactions", id)); } catch (e) { console.error(e); }
                         } else {
-                            setEntries(entries.filter(e => e.id !== id));
+                            const newEntries = entries.filter(e => e.id !== id);
+                            setEntries(newEntries);
+                            localStorage.setItem('shift_financial_data', JSON.stringify(newEntries));
                         }
                     }
                 };
@@ -1436,12 +1444,12 @@
                 const handleClearAll = async () => { 
                     if (confirm('WARNING: Delete ALL data? This cannot be undone.')) {
                         if (window.db && window.fs) {
-                            // Deleting collections in client SDK is hard (need to loop). 
-                            // For simplicity in this "easy way", we'll just alert or loop top 50.
-                            alert("Bulk delete is restricted in cloud mode for safety. Please delete records individually or use the Firebase Console.");
+                            alert("Bulk delete is restricted in cloud mode for safety.");
                         } else {
                             setEntries([]); 
                             setBillHistory([]);
+                            localStorage.removeItem('shift_financial_data');
+                            localStorage.removeItem('shift_bill_history');
                         }
                     } 
                 };
@@ -1450,7 +1458,6 @@
                     if (Array.isArray(data)) {
                         if (confirm(`Restoring ${data.length} records. ` + (window.db ? "This will upload them to the Cloud." : "This will REPLACE your local data."))) {
                             if (window.db && window.fs) {
-                                // Batch upload is cleaner, but loop is easier to write
                                 let count = 0;
                                 for (const item of data) {
                                     try {
@@ -1461,11 +1468,10 @@
                                 alert(`Uploaded ${count} records to Cloud.`);
                             } else {
                                 setEntries(data);
+                                localStorage.setItem('shift_financial_data', JSON.stringify(data));
                             }
                         }
-                    } else {
-                        alert("Invalid backup file format.");
-                    }
+                    } else { alert("Invalid backup file format."); }
                 };
 
                 const handlePrint = (type, data) => {
@@ -1516,7 +1522,7 @@
                                 {activeTab === 'add' && <EntryForm onSave={handleSaveEntry} onCancel={() => {setActiveTab('dashboard'); setEditingEntry(null);}} themeColor={settings.themeColor} editingEntry={editingEntry} allEntries={entries} billHistory={billHistory} onSaveBillCount={handleSaveBillCount} />}
                                 {activeTab === 'monthly' && <MonthlyReport entries={entries} themeColor={settings.themeColor} onPrint={(data) => handlePrint('list', data)} />}
                                 {activeTab === 'records' && <RecordsTable entries={entries} onDelete={handleDeleteEntry} onEdit={handleEditEntry} onView={setViewingEntry} onPrintSingle={(e) => handlePrint('single', e)} onPrintList={(data) => handlePrint('list', data)} themeColor={settings.themeColor} />}
-                                {activeTab === 'settings' && <SettingsPage settings={settings} updateSettings={(k,v) => setSettings(p=>({...p,[k]:v}))} onClear={handleClearAll} onImport={handleImportData} entries={entries} themeColor={settings.themeColor} onUpdateSplashLogo={onUpdateSplashLogo} currentSplashLogo={splashLogo} onLogout={onLogout} />}
+                                {activeTab === 'settings' && <SettingsPage settings={settings} updateSettings={handleUpdateSettings} onClear={handleClearAll} onImport={handleImportData} entries={entries} onLogout={onLogout} />}
                             </div>
                             <footer className="mt-8 text-center text-slate-400 text-xs font-church-body py-2">
                                 &copy; {new Date().getFullYear()} SHIFT. All rights reserved.
@@ -1535,9 +1541,17 @@
                     const isAuth = localStorage.getItem('shift_auth_logged_in') === 'true';
                     const splashSeen = sessionStorage.getItem('shift_splash_seen') === 'true';
                     const savedSplashLogo = localStorage.getItem('shift_splash_logo');
+                    const savedSettings = localStorage.getItem('shift_app_settings');
 
                     if (savedSplashLogo) {
                         setSplashLogo(savedSplashLogo);
+                    }
+                    
+                    if (savedSettings) {
+                        try {
+                            const s = JSON.parse(savedSettings);
+                            if (s.favicon) applyFavicon(s.favicon);
+                        } catch(e) {}
                     }
                     
                     if (isAuth) {
@@ -1562,11 +1576,6 @@
                     }
                     setAppState('app');
                 };
-                
-                const handleUpdateSplashLogo = (logoData) => {
-                    setSplashLogo(logoData);
-                    localStorage.setItem('shift_splash_logo', logoData);
-                };
 
                 const handleLogout = () => {
                     if (confirm("Are you sure you want to sign out?")) {
@@ -1581,8 +1590,8 @@
                 return (
                     <React.Fragment>
                         {appState === 'splash' && <SplashScreen onComplete={handleSplashComplete} customLogo={splashLogo} />}
-                        {appState === 'login' && <LoginPage onLogin={handleLoginSuccess} onUpdateSplashLogo={handleUpdateSplashLogo} />}
-                        {appState === 'app' && <DashboardApp onUpdateSplashLogo={handleUpdateSplashLogo} splashLogo={splashLogo} onLogout={handleLogout} />}
+                        {appState === 'login' && <LoginPage onLogin={handleLoginSuccess} />}
+                        {appState === 'app' && <DashboardApp onLogout={handleLogout} />}
                     </React.Fragment>
                 );
             };
