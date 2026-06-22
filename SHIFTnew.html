@@ -719,36 +719,36 @@
                 await signInAnonymously(auth);
                 userId = auth.currentUser.uid;
                 
-                // Expose methods for UI logic to use
-                fbAddRecord = async (record) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'records', record.id.toString()), record); };
-                fbUpdateRecord = async (record) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'records', record.id.toString()), record); };
-                fbDeleteRecord = async (id) => { if(userId) await deleteDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'records', id.toString())); };
-                fbUpdateSettings = async (settings) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'settings', 'global'), settings); };
-                fbAddBillHistory = async (history) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'billHistory', history.id.toString()), history); };
-                fbDeleteBillHistory = async (id) => { if(userId) await deleteDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'billHistory', id.toString())); };
+                // Expose methods for UI logic to use (Using Shared Public Paths so all devices sync together)
+                fbAddRecord = async (record) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'records', record.id.toString()), record); };
+                fbUpdateRecord = async (record) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'records', record.id.toString()), record); };
+                fbDeleteRecord = async (id) => { if(userId) await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'records', id.toString())); };
+                fbUpdateSettings = async (settings) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'settings', 'global'), settings); };
+                fbAddBillHistory = async (history) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'billHistory', history.id.toString()), history); };
+                fbDeleteBillHistory = async (id) => { if(userId) await deleteDoc(doc(db, 'artifacts', currentAppId, 'public', 'data', 'billHistory', id.toString())); };
 
                 // Real-time synchronization listeners
-                onSnapshot(collection(db, 'artifacts', currentAppId, 'users', userId, 'records'), (snap) => {
+                onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'records'), (snap) => {
                     const records = [];
                     snap.forEach(d => records.push(d.data()));
                     appData.records = records;
                     updateAllViews();
-                }, (err) => console.error(err));
+                }, (err) => console.error("Firebase Error:", err));
 
-                onSnapshot(doc(db, 'artifacts', currentAppId, 'users', userId, 'settings', 'global'), (docSnap) => {
+                onSnapshot(doc(db, 'artifacts', currentAppId, 'public', 'data', 'settings', 'global'), (docSnap) => {
                     if(docSnap.exists()) {
                         appData.settings = docSnap.data();
                         applySettingsLogo();
                     }
-                }, (err) => console.error(err));
+                }, (err) => console.error("Firebase Error:", err));
 
-                onSnapshot(collection(db, 'artifacts', currentAppId, 'users', userId, 'billHistory'), (snap) => {
+                onSnapshot(collection(db, 'artifacts', currentAppId, 'public', 'data', 'billHistory'), (snap) => {
                     const history = [];
                     snap.forEach(d => history.push(d.data()));
                     history.sort((a,b) => b.id - a.id); // Descending order
                     appData.billHistory = history;
                     renderBillHistory();
-                }, (err) => console.error(err));
+                }, (err) => console.error("Firebase Error:", err));
                 
             } catch (err) {
                 console.error("Firebase Initialization Error:", err);
