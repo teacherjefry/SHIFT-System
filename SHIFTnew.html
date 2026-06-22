@@ -115,8 +115,8 @@
 
     <!-- Mini Calculator Modal -->
     <div id="calculator-modal" class="fixed inset-0 bg-slate-900/40 z-[150] modal-overlay items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[320px] p-5">
-            <div class="flex justify-between items-center mb-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[320px] p-5" id="calc-box">
+            <div class="flex justify-between items-center mb-4 select-none" id="calc-header">
                 <h3 class="font-bold text-slate-800 flex items-center gap-2"><i class="ph ph-calculator"></i> Calculator</h3>
                 <button onclick="closeModal('calculator-modal')" class="text-slate-400 hover:text-rose-500"><i class="ph ph-x text-lg"></i></button>
             </div>
@@ -846,7 +846,7 @@
             document.getElementById('live-baht').textContent = formatBAHT(baht);
         }
 
-        // Init
+        // Initialization
         window.onload = () => {
             document.getElementById('copyright-year').textContent = new Date().getFullYear();
             const options = { year: 'numeric', month: 'long', day: 'numeric' };
@@ -856,11 +856,95 @@
             document.getElementById('deduct-date').value = getTodayDate();
             updateWeekName();
 
+            setupDraggableCalc(); // Initialize Drag feature for calculator
+
             buildBillCounterRows();
             renderDashboard();
             renderMonthlyReport();
             renderAllRecords();
         };
+
+        // Keyboard support for Calculator
+        document.addEventListener('keydown', (e) => {
+            const calcModal = document.getElementById('calculator-modal');
+            if (calcModal && calcModal.classList.contains('active')) {
+                const key = e.key;
+                if (/^[0-9\+\-\*\/\.\(\)]$/.test(key)) {
+                    e.preventDefault();
+                    calcAction(key);
+                } else if (key === 'Enter' || key === '=') {
+                    e.preventDefault();
+                    calcAction('=');
+                } else if (key === 'Backspace') {
+                    e.preventDefault();
+                    calcAction('Backspace');
+                } else if (key.toLowerCase() === 'c') {
+                    e.preventDefault();
+                    calcAction('C');
+                } else if (key === 'Escape') {
+                    e.preventDefault();
+                    closeModal('calculator-modal');
+                }
+            }
+        });
+
+        // Draggable Calculator Setup
+        function setupDraggableCalc() {
+            const calcBox = document.getElementById('calc-box');
+            const calcHeader = document.getElementById('calc-header');
+            if (!calcBox || !calcHeader) return;
+
+            calcHeader.style.cursor = 'grab';
+            let isDragging = false;
+            let startX, startY, initialLeft, initialTop;
+
+            const startDrag = (e) => {
+                if(e.target.closest('button')) return; 
+                isDragging = true;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                const rect = calcBox.getBoundingClientRect();
+                if (calcBox.style.position !== 'absolute') {
+                    calcBox.style.position = 'absolute';
+                    calcBox.style.left = rect.left + 'px';
+                    calcBox.style.top = rect.top + 'px';
+                    calcBox.style.margin = '0'; 
+                }
+                
+                startX = clientX;
+                startY = clientY;
+                initialLeft = parseFloat(calcBox.style.left) || rect.left;
+                initialTop = parseFloat(calcBox.style.top) || rect.top;
+                calcHeader.style.cursor = 'grabbing';
+            };
+
+            const doDrag = (e) => {
+                if (!isDragging) return;
+                e.preventDefault(); 
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                const dx = clientX - startX;
+                const dy = clientY - startY;
+                
+                calcBox.style.left = `${initialLeft + dx}px`;
+                calcBox.style.top = `${initialTop + dy}px`;
+            };
+
+            const endDrag = () => {
+                isDragging = false;
+                calcHeader.style.cursor = 'grab';
+            };
+
+            calcHeader.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', doDrag);
+            document.addEventListener('mouseup', endDrag);
+
+            calcHeader.addEventListener('touchstart', startDrag, {passive: false});
+            document.addEventListener('touchmove', doDrag, {passive: false});
+            document.addEventListener('touchend', endDrag);
+        }
 
         // UI Interactions
         function toggleMobileMenu() {
@@ -951,6 +1035,19 @@
             if(document.getElementById('all-records').classList.contains('active')) renderAllRecords();
         }
 
+        // Format Calculator Display with Commas
+        function formatCalcDisplay(expr) {
+            if (!expr || expr === 'Error') return expr || '';
+            // Match numbers and format them with commas
+            return expr.replace(/\d+(\.\d+)?/g, (match) => {
+                const parts = match.split('.');
+                if(parts[0].length > 0) {
+                    parts[0] = parseInt(parts[0], 10).toLocaleString('en-US');
+                }
+                return parts.join('.');
+            });
+        }
+
         // Mini Calculator
         let currentCalcInputId = null;
         let calcExpr = '';
@@ -958,12 +1055,27 @@
         function openCalc(inputId) {
             currentCalcInputId = inputId;
             calcExpr = document.getElementById(inputId).value.replace(/,/g, '');
-            document.getElementById('calc-display').value = calcExpr || '0';
+            document.getElementById('calc-display').value = formatCalcDisplay(calcExpr) || '0';
+            
+            // Reset position for draggable calc to center gracefully when reopened
+            const calcBox = document.getElementById('calc-box');
+            if (calcBox) {
+                calcBox.style.position = '';
+                calcBox.style.left = '';
+                calcBox.style.top = '';
+                calcBox.style.margin = '';
+            }
+
             openModal('calculator-modal');
         }
 
         function calcAction(val) {
             if(val === 'C') { calcExpr = ''; }
+            else if (val === 'Backspace') {
+                if(calcExpr !== 'Error' && calcExpr.length > 0) {
+                    calcExpr = calcExpr.slice(0, -1);
+                }
+            }
             else if(val === '=') {
                 try {
                     // Safe basic evaluation
@@ -986,7 +1098,7 @@
                 if(calcExpr === 'Error') calcExpr = '';
                 calcExpr += val;
             }
-            if(val !== '=') document.getElementById('calc-display').value = calcExpr || '0';
+            if(val !== '=') document.getElementById('calc-display').value = formatCalcDisplay(calcExpr) || '0';
         }
 
         // Bill Counter
