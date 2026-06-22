@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHIFT Financial Records</title>
+    
+    <!-- Dynamic SVG Favicon & Apple Touch Icon (Will be overwritten if logo is uploaded) -->
+    <link id="dynamic-favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f172a'/><text x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='60'>📈</text></svg>">
+    <link id="dynamic-apple-icon" rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f172a'/><text x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='60'>📈</text></svg>">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            900: '#134e4a',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Smooth transitions */
+        .tab-content { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Toast notification */
+        #toast { visibility: hidden; opacity: 0; transition: visibility 0s, opacity 0.3s linear; }
+        #toast.show { visibility: visible; opacity: 1; }
+        
+        /* Inner Tabs */
+        .inner-tab-btn.active { border-bottom: 2px solid #0d9488; color: #0d9488; font-weight: 600; }
+        .inner-tab-content { display: none; }
+        .inner-tab-content.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+
+        /* Modals */
+        .modal-overlay { display: none; }
+        .modal-overlay.active { display: flex; animation: fadeIn 0.2s ease-in-out; }
+        
+        /* Calculator grid */
+        .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .calc-btn { background: #f1f5f9; border-radius: 8px; padding: 12px; font-weight: bold; font-size: 1.1rem; text-align: center; cursor: pointer; transition: background 0.2s; }
+        .calc-btn:hover { background: #e2e8f0; }
+        .calc-btn.op { background: #0d9488; color: white; }
+        .calc-btn.op:hover { background: #0f766e; }
+        .calc-btn.equals { background: #2563eb; color: white; grid-column: span 2; }
+        .calc-btn.equals:hover { background: #1d4ed8; }
+    </style>
+</head>
+<body class="bg-[#f3f4f6] text-slate-800 font-sans min-h-screen flex flex-col md:flex-row overflow-x-hidden">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 right-5 z-[200] bg-slate-900 text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700">
+        <i class="ph-fill ph-check-circle text-brand-500 text-xl"></i>
+        <span id="toast-message" class="text-sm font-medium">Success!</span>
+    </div>
+
+    <!-- Confirm Clear Data Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 z-[100] modal-overlay items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center transform transition-transform duration-300">
+            <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="ph ph-warning text-3xl"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-900 mb-2">Delete All Data?</h3>
+            <p class="text-slate-500 text-sm mb-6">This action is permanent and cannot be undone. All your financial records will be wiped from memory.</p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="closeModal('confirm-modal')" class="px-5 py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100 transition-colors">Cancel</button>
+                <button onclick="executeClearData()" class="px-5 py-2.5 bg-red-600 text-white rounded-xl font-medium shadow-md hover:bg-red-700 transition-colors">Yes, Delete All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mini Calculator Modal -->
+    <div id="calculator-modal" class="fixed inset-0 bg-slate-900/40 z-[150] modal-overlay items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[320px] p-5">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2"><i class="ph ph-calculator"></i> Calculator</h3>
+                <button onclick="closeModal('calculator-modal')" class="text-slate-400 hover:text-rose-500"><i class="ph ph-x text-lg"></i></button>
+            </div>
+            <input type="text" id="calc-display" readonly class="w-full bg-slate-100 border border-slate-200 rounded-xl p-4 text-right text-2xl font-bold mb-4 outline-none tracking-wide text-slate-800">
+            <div class="calc-grid">
+                <button class="calc-btn text-rose-500" onclick="calcAction('C')">C</button>
+                <button class="calc-btn" onclick="calcAction('(')">(</button>
+                <button class="calc-btn" onclick="calcAction(')')">)</button>
+                <button class="calc-btn op" onclick="calcAction('/')">÷</button>
+                
+                <button class="calc-btn" onclick="calcAction('7')">7</button>
+                <button class="calc-btn" onclick="calcAction('8')">8</button>
+                <button class="calc-btn" onclick="calcAction('9')">9</button>
+                <button class="calc-btn op" onclick="calcAction('*')">×</button>
+                
+                <button class="calc-btn" onclick="calcAction('4')">4</button>
+                <button class="calc-btn" onclick="calcAction('5')">5</button>
+                <button class="calc-btn" onclick="calcAction('6')">6</button>
+                <button class="calc-btn op" onclick="calcAction('-')">−</button>
+                
+                <button class="calc-btn" onclick="calcAction('1')">1</button>
+                <button class="calc-btn" onclick="calcAction('2')">2</button>
+                <button class="calc-btn" onclick="calcAction('3')">3</button>
+                <button class="calc-btn op" onclick="calcAction('+')">+</button>
+                
+                <button class="calc-btn" onclick="calcAction('0')">0</button>
+                <button class="calc-btn" onclick="calcAction('.')">.</button>
+                <button class="calc-btn equals" onclick="calcAction('=')">=</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bill Counter Modal -->
+    <div id="bill-modal" class="fixed inset-0 bg-slate-900/60 z-[150] modal-overlay items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center p-5 border-b border-slate-200 bg-slate-50">
+                <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="ph ph-money text-brand-600 text-xl"></i> LAK Bill Counter</h3>
+                <button onclick="closeModal('bill-modal')" class="text-slate-400 hover:text-rose-500"><i class="ph ph-x text-xl"></i></button>
+            </div>
+            
+            <div class="flex border-b border-slate-200">
+                <button onclick="switchBillTab('counter')" id="b-tab-counter" class="flex-1 py-3 font-semibold text-sm border-b-2 border-brand-500 text-brand-600">Counter</button>
+                <button onclick="switchBillTab('history')" id="b-tab-history" class="flex-1 py-3 font-semibold text-sm text-slate-500 border-b-2 border-transparent hover:text-slate-700">History</button>
+            </div>
+
+            <div class="overflow-y-auto p-5 relative" id="bill-content-area">
+                <!-- Counter Tab -->
+                <div id="bill-tab-counter">
+                    <div class="grid grid-cols-[100px_1fr_120px] gap-4 mb-3 px-2 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                        <div>Bill (₭)</div>
+                        <div>Pieces (Qty)</div>
+                        <div class="text-right">Total (₭)</div>
+                    </div>
+                    <div class="space-y-3" id="bill-rows-container">
+                        <!-- Generated by JS -->
+                    </div>
+                    <div class="mt-6 bg-slate-900 p-5 rounded-xl flex justify-between items-center text-white shadow-inner">
+                        <span class="font-bold uppercase tracking-widest text-sm text-brand-400">Grand Total LAK</span>
+                        <span class="text-2xl font-bold" id="bill-grand-total">0</span>
+                    </div>
+                    <div class="mt-6 grid grid-cols-2 gap-4">
+                        <button onclick="clearBillCounter()" class="py-3 px-4 rounded-xl border border-slate-300 font-bold text-slate-600 hover:bg-slate-50 transition-colors">Clear Form</button>
+                        <button onclick="applyBillCounter()" class="py-3 px-4 rounded-xl bg-brand-600 font-bold text-white shadow-md hover:bg-brand-700 transition-colors flex items-center justify-center gap-2"><i class="ph ph-check-circle"></i> Save & Apply to Offering</button>
+                    </div>
+                </div>
+
+                <!-- History Tab -->
+                <div id="bill-tab-history" class="hidden">
+                    <div id="bill-history-container" class="space-y-4">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Record Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-slate-900/60 z-[120] modal-overlay items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+            <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+                <h3 class="text-2xl font-bold text-slate-900 flex items-center gap-2"><i class="ph ph-pencil-simple text-brand-600"></i> Edit Record</h3>
+                <button onclick="closeModal('edit-modal')" class="text-slate-400 hover:text-rose-500 bg-slate-100 p-2 rounded-full"><i class="ph ph-x text-lg"></i></button>
+            </div>
+            
+            <form id="edit-form" onsubmit="saveEditedRecord(event)">
+                <input type="hidden" id="edit-id">
+                <input type="hidden" id="edit-type">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Record Date</label>
+                        <input type="date" id="edit-date" required class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Record Name / Week</label>
+                        <input type="text" id="edit-week" required class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                </div>
+
+                <!-- Weekly Fields -->
+                <div id="edit-weekly-fields" class="space-y-6 hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                            <h4 class="font-bold text-blue-800 text-sm mb-3">Offerings (+)</h4>
+                            <div class="space-y-3">
+                                <div><label class="text-xs text-blue-600 font-bold">LAK</label><input type="text" id="edit-off-lak" class="money-input w-full px-3 py-2 border border-blue-200 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                                <div><label class="text-xs text-blue-600 font-bold">USD</label><input type="text" id="edit-off-usd" class="money-input w-full px-3 py-2 border border-blue-200 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                                <div><label class="text-xs text-blue-600 font-bold">BAHT</label><input type="text" id="edit-off-baht" class="money-input w-full px-3 py-2 border border-blue-200 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                            </div>
+                        </div>
+                        <div class="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                            <h4 class="font-bold text-emerald-800 text-sm mb-3">Tithes (+)</h4>
+                            <div class="space-y-3">
+                                <div><label class="text-xs text-emerald-600 font-bold">LAK</label><input type="text" id="edit-tithe-lak" class="money-input w-full px-3 py-2 border border-emerald-200 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                                <div><label class="text-xs text-emerald-600 font-bold">USD</label><input type="text" id="edit-tithe-usd" class="money-input w-full px-3 py-2 border border-emerald-200 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                                <div><label class="text-xs text-emerald-600 font-bold">BAHT</label><input type="text" id="edit-tithe-baht" class="money-input w-full px-3 py-2 border border-emerald-200 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                            </div>
+                        </div>
+                        <div class="p-4 bg-rose-50 border border-rose-100 rounded-xl">
+                            <h4 class="font-bold text-rose-800 text-sm mb-3">Deductions (-)</h4>
+                            <div class="space-y-3">
+                                <div><label class="text-xs text-rose-600 font-bold">LAK</label><input type="text" id="edit-ded-lak" class="money-input w-full px-3 py-2 border border-rose-200 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                                <div><label class="text-xs text-rose-600 font-bold">USD</label><input type="text" id="edit-ded-usd" class="money-input w-full px-3 py-2 border border-rose-200 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                                <div><label class="text-xs text-rose-600 font-bold">BAHT</label><input type="text" id="edit-ded-baht" class="money-input w-full px-3 py-2 border border-rose-200 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- General Fields -->
+                <div id="edit-general-fields" class="space-y-6 hidden">
+                    <div class="p-5 bg-rose-50 border border-rose-200 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div><label class="text-xs text-rose-600 font-bold">Deduct LAK</label><input type="text" id="edit-gen-lak" class="money-input w-full px-3 py-2 border border-rose-300 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                        <div><label class="text-xs text-rose-600 font-bold">Deduct USD</label><input type="text" id="edit-gen-usd" class="money-input w-full px-3 py-2 border border-rose-300 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                        <div><label class="text-xs text-rose-600 font-bold">Deduct BAHT</label><input type="text" id="edit-gen-baht" class="money-input w-full px-3 py-2 border border-rose-300 rounded-lg text-sm outline-none" oninput="formatMoneyInput(event)"></div>
+                    </div>
+                </div>
+
+                <div class="mt-6 mb-6">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Notes</label>
+                    <input type="text" id="edit-desc" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button type="button" onclick="closeModal('edit-modal')" class="px-6 py-3 rounded-xl border border-slate-300 text-slate-600 font-bold hover:bg-slate-50 transition-colors">Cancel</button>
+                    <button type="submit" class="px-6 py-3 rounded-xl bg-brand-600 text-white font-bold shadow-md hover:bg-brand-700 transition-colors flex items-center gap-2"><i class="ph ph-floppy-disk"></i> Update Record</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Mobile Header -->
+    <div class="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
+        <div class="flex items-center gap-2">
+            <div id="mobile-logo-container" class="bg-brand-500 p-1.5 rounded-md flex items-center justify-center w-8 h-8 overflow-hidden">
+                <i class="ph ph-chart-line-up text-lg text-white" id="mobile-default-icon"></i>
+                <img id="mobile-custom-logo" src="" class="hidden w-full h-full object-cover">
+            </div>
+            <h1 class="font-bold tracking-wide">SHIFT<span class="text-brand-500">Finance</span></h1>
+        </div>
+        <button onclick="toggleMobileMenu()" class="text-2xl p-1 focus:outline-none">
+            <i class="ph ph-list"></i>
+        </button>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar" class="bg-slate-900 text-white w-64 min-h-screen flex-col shadow-xl fixed md:sticky top-0 z-40 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out flex">
+        <div class="p-6 flex items-center gap-3 border-b border-slate-800">
+            <div id="desktop-logo-container" class="bg-brand-500 p-2 rounded-lg flex items-center justify-center w-10 h-10 overflow-hidden">
+                <i class="ph ph-chart-line-up text-2xl text-white" id="desktop-default-icon"></i>
+                <img id="desktop-custom-logo" src="" class="hidden w-full h-full object-cover">
+            </div>
+            <h1 class="text-xl font-bold tracking-wide">SHIFT<span class="text-brand-500">Finance</span></h1>
+            <!-- Mobile Close Button -->
+            <button onclick="toggleMobileMenu()" class="md:hidden ml-auto text-slate-400 hover:text-white">
+                <i class="ph ph-x text-xl"></i>
+            </button>
+        </div>
+        
+        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-left rounded-xl bg-brand-600 text-white transition-all">
+                <i class="ph ph-squares-four text-xl"></i> Dashboard
+            </button>
+            <button onclick="switchTab('new-entry')" id="nav-new-entry" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-left rounded-xl text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                <i class="ph ph-plus-circle text-xl"></i> New Entry
+            </button>
+            <button onclick="switchTab('monthly-report')" id="nav-monthly-report" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-left rounded-xl text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                <i class="ph ph-calendar text-xl"></i> Monthly Report
+            </button>
+            <button onclick="switchTab('all-records')" id="nav-all-records" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-left rounded-xl text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                <i class="ph ph-list-dashes text-xl"></i> All Records
+            </button>
+            <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-left rounded-xl text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                <i class="ph ph-gear text-xl"></i> Settings
+            </button>
+        </nav>
+
+        <div class="p-6 border-t border-slate-800 text-xs text-slate-400">
+            <p>&copy; <span id="copyright-year"></span> SHIFT Finance</p>
+        </div>
+    </aside>
+
+    <div id="mobile-overlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-slate-900/50 z-30 hidden md:hidden"></div>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 p-4 md:p-8 max-h-screen overflow-y-auto w-full relative">
+        
+        <!-- DASHBOARD TAB -->
+        <section id="dashboard" class="tab-content active max-w-7xl mx-auto">
+            <header class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+                <div>
+                    <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Financial Dashboard</h2>
+                    <p class="text-slate-500 text-sm mt-1">Overview of collections and deductions</p>
+                </div>
+                <div class="bg-red-500 text-white font-bold px-6 py-2 rounded-lg text-lg md:text-xl shadow-sm tracking-wide self-start md:self-auto" id="dashboard-date-badge"></div>
+            </header>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <!-- LAK Card -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden">
+                    <i class="ph ph-currency-dollar text-slate-100 text-8xl absolute -right-4 -top-4 opacity-50 pointer-events-none"></i>
+                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">LAK Financials</h3>
+                    <div class="flex items-baseline gap-2 mb-6 border-b border-slate-100 pb-4">
+                        <span class="text-3xl font-bold text-blue-600" id="dash-card-lak-net">₭ 0</span>
+                        <span class="text-xs text-slate-400 font-medium">Grand Total</span>
+                    </div>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between text-slate-600"><span>Offering (+)</span> <span id="dash-card-lak-off">₭ 0</span></div>
+                        <div class="flex justify-between text-slate-600"><span>Tithes (+)</span> <span id="dash-card-lak-tithe">₭ 0</span></div>
+                        <div class="flex justify-between font-bold text-slate-800 pt-1"><span>Gross Total</span> <span id="dash-card-lak-gross">₭ 0</span></div>
+                        <div class="flex justify-between text-red-500 pt-1"><span>Deductions (-)</span> <span id="dash-card-lak-ded">-₭ 0</span></div>
+                    </div>
+                </div>
+
+                <!-- USD Card -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden">
+                    <i class="ph ph-currency-dollar text-slate-100 text-8xl absolute -right-4 -top-4 opacity-50 pointer-events-none"></i>
+                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">USD Financials</h3>
+                    <div class="flex items-baseline gap-2 mb-6 border-b border-slate-100 pb-4">
+                        <span class="text-3xl font-bold text-green-600" id="dash-card-usd-net">$ 0.00</span>
+                        <span class="text-xs text-slate-400 font-medium">Grand Total</span>
+                    </div>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between text-slate-600"><span>Offering (+)</span> <span id="dash-card-usd-off">$ 0.00</span></div>
+                        <div class="flex justify-between text-slate-600"><span>Tithes (+)</span> <span id="dash-card-usd-tithe">$ 0.00</span></div>
+                        <div class="flex justify-between font-bold text-slate-800 pt-1"><span>Gross Total</span> <span id="dash-card-usd-gross">$ 0.00</span></div>
+                        <div class="flex justify-between text-red-500 pt-1"><span>Deductions (-)</span> <span id="dash-card-usd-ded">-$ 0.00</span></div>
+                    </div>
+                </div>
+
+                <!-- THB Card -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden">
+                    <i class="ph ph-currency-dollar text-slate-100 text-8xl absolute -right-4 -top-4 opacity-50 pointer-events-none"></i>
+                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">THB Financials</h3>
+                    <div class="flex items-baseline gap-2 mb-6 border-b border-slate-100 pb-4">
+                        <span class="text-3xl font-bold text-orange-500" id="dash-card-thb-net">฿ 0</span>
+                        <span class="text-xs text-slate-400 font-medium">Grand Total</span>
+                    </div>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between text-slate-600"><span>Offering (+)</span> <span id="dash-card-thb-off">฿ 0</span></div>
+                        <div class="flex justify-between text-slate-600"><span>Tithes (+)</span> <span id="dash-card-thb-tithe">฿ 0</span></div>
+                        <div class="flex justify-between font-bold text-slate-800 pt-1"><span>Gross Total</span> <span id="dash-card-thb-gross">฿ 0</span></div>
+                        <div class="flex justify-between text-red-500 pt-1"><span>Deductions (-)</span> <span id="dash-card-thb-ded">-฿ 0</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-4">Net Fund Trends (LAK)</h3>
+                    <div class="w-full h-64 relative"><canvas id="chart-lak"></canvas></div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-4">USD vs THB Trends</h3>
+                    <div class="w-full h-64 relative"><canvas id="chart-usd-thb"></canvas></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- NEW ENTRY TAB -->
+        <section id="new-entry" class="tab-content max-w-4xl mx-auto">
+            <header class="mb-6">
+                <h2 class="text-3xl font-bold text-slate-900">Add New Entry</h2>
+                <p class="text-slate-500 mt-1">Record weekly collections or process general deductions.</p>
+            </header>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
+                    <button onclick="switchInnerTab('weekly')" id="inner-tab-weekly" class="inner-tab-btn active px-6 py-4 text-sm font-medium text-slate-500 hover:text-slate-800 whitespace-nowrap transition-colors flex items-center gap-2">
+                        <i class="ph ph-calendar-plus text-lg"></i> Weekly Collection
+                    </button>
+                    <button onclick="switchInnerTab('general')" id="inner-tab-general" class="inner-tab-btn px-6 py-4 text-sm font-medium text-slate-500 hover:text-slate-800 whitespace-nowrap transition-colors flex items-center gap-2">
+                        <i class="ph ph-minus-circle text-lg"></i> General Deduction
+                    </button>
+                </div>
+
+                <!-- WEEKLY ENTRY FORM -->
+                <div id="form-weekly" class="inner-tab-content active p-6 md:p-8">
+                    <form onsubmit="submitWeeklyEntry(event)">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Record Date</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="ph ph-calendar-blank text-slate-400"></i></div>
+                                    <input type="date" id="entry-date" onchange="updateWeekName()" required class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Weekly Name (Auto)</label>
+                                <input type="text" id="entry-week" readonly class="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-brand-700 font-bold outline-none cursor-default text-sm">
+                            </div>
+                        </div>
+
+                        <div class="space-y-6">
+                            <!-- Offerings -->
+                            <div class="p-5 bg-blue-50/50 border border-blue-100 rounded-2xl">
+                                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                                    <h3 class="font-bold text-blue-800 flex items-center gap-2 text-sm"><i class="ph ph-hand-coins text-lg"></i> Offerings (+)</h3>
+                                    <button type="button" onclick="openBillModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-1">
+                                        <i class="ph ph-calculator"></i> 🧮 Bill Counter
+                                    </button>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">LAK (KIP)</label>
+                                        <div class="relative">
+                                            <input type="text" id="off-lak" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                                            <button type="button" onclick="openCalc('off-lak')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">USD</label>
+                                        <div class="relative">
+                                            <input type="text" id="off-usd" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                                            <button type="button" onclick="openCalc('off-usd')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">BAHT</label>
+                                        <div class="relative">
+                                            <input type="text" id="off-baht" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                                            <button type="button" onclick="openCalc('off-baht')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tithes -->
+                            <div class="p-5 bg-emerald-50/50 border border-emerald-100 rounded-2xl">
+                                <h3 class="font-bold text-emerald-800 mb-4 flex items-center gap-2 text-sm"><i class="ph ph-bank text-lg"></i> Tithes (+)</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">LAK (KIP)</label>
+                                        <div class="relative">
+                                            <input type="text" id="tithe-lak" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                                            <button type="button" onclick="openCalc('tithe-lak')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">USD</label>
+                                        <div class="relative">
+                                            <input type="text" id="tithe-usd" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                                            <button type="button" onclick="openCalc('tithe-usd')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">BAHT</label>
+                                        <div class="relative">
+                                            <input type="text" id="tithe-baht" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                                            <button type="button" onclick="openCalc('tithe-baht')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Deductions -->
+                            <div class="p-5 bg-rose-50/50 border border-rose-100 rounded-2xl">
+                                <h3 class="font-bold text-rose-800 mb-4 flex items-center gap-2 text-sm"><i class="ph ph-trend-down text-lg"></i> Specific Deductions (-)</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">LAK (KIP)</label>
+                                        <div class="relative">
+                                            <input type="text" id="ded-lak" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                                            <button type="button" onclick="openCalc('ded-lak')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">USD</label>
+                                        <div class="relative">
+                                            <input type="text" id="ded-usd" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                                            <button type="button" onclick="openCalc('ded-usd')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">BAHT</label>
+                                        <div class="relative">
+                                            <input type="text" id="ded-baht" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                                            <button type="button" onclick="openCalc('ded-baht')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-900 rounded-2xl p-5 text-white shadow-lg mt-6 mb-6">
+                            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Net Weekly Deposit</h3>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div><div class="text-[10px] text-slate-400 mb-1 uppercase">LAK</div><div class="text-lg md:text-xl font-bold text-emerald-400" id="live-lak">₭ 0</div></div>
+                                <div><div class="text-[10px] text-slate-400 mb-1 uppercase">USD</div><div class="text-lg md:text-xl font-bold text-emerald-400" id="live-usd">$ 0.00</div></div>
+                                <div><div class="text-[10px] text-slate-400 mb-1 uppercase">THB</div><div class="text-lg md:text-xl font-bold text-emerald-400" id="live-baht">฿ 0</div></div>
+                            </div>
+                        </div>
+
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Notes</label>
+                            <input type="text" id="entry-desc" placeholder="e.g., Sunday Service..." class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none text-sm">
+                        </div>
+                        <button type="submit" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-all flex justify-center items-center gap-2 text-sm">
+                            <i class="ph ph-floppy-disk text-xl"></i> Save Weekly Record
+                        </button>
+                    </form>
+                </div>
+
+                <!-- GENERAL DEDUCTION FORM -->
+                <div id="form-general" class="inner-tab-content p-6 md:p-8 bg-rose-50/20">
+                    <form onsubmit="submitGeneralDeduction(event)">
+                        <div class="bg-rose-100 text-rose-800 p-4 rounded-xl mb-6 text-sm flex gap-3 items-start border border-rose-200">
+                            <i class="ph ph-info mt-0.5 text-lg"></i>
+                            <p><strong>General Deductions</strong> subtract directly from the Grand Total. Use when expenses exceed a single week's collection.</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Deduction Date</label>
+                                <input type="date" id="deduct-date" required class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Reason / Description</label>
+                                <input type="text" id="deduct-desc" required placeholder="e.g., Building Maintenance" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-sm">
+                            </div>
+                        </div>
+                        <div class="bg-white p-5 border border-slate-200 rounded-2xl mb-8 shadow-sm">
+                            <h3 class="font-bold text-slate-800 mb-4 text-sm">Amounts to Deduct</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">LAK (KIP)</label>
+                                    <div class="relative">
+                                        <input type="text" id="gen-ded-lak" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none text-sm">
+                                        <button type="button" onclick="openCalc('gen-ded-lak')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">USD</label>
+                                    <div class="relative">
+                                        <input type="text" id="gen-ded-usd" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none text-sm">
+                                        <button type="button" onclick="openCalc('gen-ded-usd')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 mb-1">BAHT</label>
+                                    <div class="relative">
+                                        <input type="text" id="gen-ded-baht" oninput="formatMoneyInput(event)" placeholder="0" class="money-input w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none text-sm">
+                                        <button type="button" onclick="openCalc('gen-ded-baht')" class="absolute right-2 top-1.5 text-slate-400 hover:text-brand-500 p-1"><i class="ph ph-calculator"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-all flex justify-center items-center gap-2 text-sm">
+                            <i class="ph ph-minus-circle text-xl"></i> Deduct from Grand Total
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- MONTHLY REPORT TAB -->
+        <section id="monthly-report" class="tab-content max-w-7xl mx-auto">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-slate-900">Monthly Reports</h2>
+                <p class="text-slate-500 mt-1">Aggregated statistics broken down by month and year.</p>
+            </header>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[800px]">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+                                <th class="py-4 px-6 font-semibold">Month / Year</th>
+                                <th class="py-4 px-6 font-semibold text-slate-700">Offerings</th>
+                                <th class="py-4 px-6 font-semibold text-slate-700">Tithes</th>
+                                <th class="py-4 px-6 font-semibold text-slate-700">Deductions</th>
+                                <th class="py-4 px-6 font-semibold text-right text-slate-900">Net Balance</th>
+                                <th class="py-4 px-6 font-semibold text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthly-report-body" class="divide-y divide-slate-100">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ALL RECORDS TAB -->
+        <section id="all-records" class="tab-content max-w-7xl mx-auto">
+            <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-3xl font-bold text-slate-900">All Records</h2>
+                    <p class="text-slate-500 mt-1">Complete history of all entries including general deductions.</p>
+                </div>
+                <div class="relative w-full md:w-72">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="ph ph-magnifying-glass text-slate-400"></i></div>
+                    <input type="text" id="search-input" onkeyup="renderAllRecords()" placeholder="Search description or date..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none transition-all text-sm">
+                </div>
+            </header>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[900px]">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+                                <th class="py-4 px-6 font-semibold w-1/4">Record Info</th>
+                                <th class="py-4 px-6 font-semibold">Offerings</th>
+                                <th class="py-4 px-6 font-semibold">Tithes</th>
+                                <th class="py-4 px-6 font-semibold">Deductions</th>
+                                <th class="py-4 px-6 font-semibold text-right text-slate-800">Net Transaction</th>
+                                <th class="py-4 px-6 font-semibold text-center w-24">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="all-records-body" class="divide-y divide-slate-100">
+                        </tbody>
+                    </table>
+                </div>
+                <div id="empty-state" class="hidden p-12 text-center">
+                    <i class="ph ph-folder-open text-6xl text-slate-300 mb-4 inline-block"></i>
+                    <h3 class="text-lg font-medium text-slate-700">No records found</h3>
+                    <p class="text-slate-500 mt-1 text-sm">Start by adding a new entry.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SETTINGS TAB -->
+        <section id="settings" class="tab-content max-w-3xl mx-auto">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-slate-900">Settings</h2>
+                <p class="text-slate-500 mt-1">Configure preferences and manage data.</p>
+            </header>
+            <div class="space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Branding</h3>
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-6">
+                        <div id="settings-logo-preview" class="w-20 h-20 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center overflow-hidden">
+                            <i class="ph ph-image text-3xl text-slate-300" id="preview-default"></i>
+                            <img id="preview-img" src="" class="hidden w-full h-full object-cover">
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-medium text-slate-800 text-sm mb-1">Custom Logo</h4>
+                            <p class="text-xs text-slate-500 mb-3">Upload a square image to replace the default app icon, favicon, and mobile icon.</p>
+                            <input type="file" id="logo-upload" accept="image/*" onchange="handleLogoUpload(event)" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 transition-all cursor-pointer">
+                        </div>
+                    </div>
+                <!-- Storage Info -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Storage Information</h3>
+                    <div class="flex items-start gap-4">
+                        <div class="bg-brand-100 text-brand-600 p-3 rounded-xl"><i class="ph ph-database text-2xl"></i></div>
+                        <div>
+                            <h4 class="font-medium text-slate-800 text-sm">Cloud Database Connected</h4>
+                            <p class="text-xs text-slate-500 mt-1 leading-relaxed">This application is securely connected to Firebase Cloud Storage. All your records, bill histories, and settings are automatically synced and accessible across all your devices.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-red-50 p-6 rounded-2xl border border-red-200">
+                    <h3 class="text-lg font-bold text-red-800 mb-2 flex items-center gap-2"><i class="ph ph-warning-circle"></i> Danger Zone</h3>
+                    <p class="text-sm text-red-600 mb-4">Wipe all current records from memory. This action cannot be undone.</p>
+                    <button onclick="requestClearData()" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-5 rounded-xl shadow-sm transition-all text-sm flex items-center gap-2">
+                        <i class="ph ph-trash"></i> Delete All Data
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // Data Structure
+        let appData = {
+            settings: { logo: null },
+            records: [],
+            billHistory: []
+        };
+
+        // Firebase Cloud Storage Integration
+        let fbAddRecord, fbUpdateRecord, fbDeleteRecord, fbUpdateSettings, fbAddBillHistory, fbDeleteBillHistory;
+
+        (async () => {
+            try {
+                const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+                const { getAuth, signInAnonymously } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                const { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+
+                const firebaseConfig = {
+                    apiKey: "AIzaSyBnM3E2nJ_wunZc0blzk4EbfY5BB_1K2Ks",
+                    authDomain: "shift-system-4f00b.firebaseapp.com",
+                    projectId: "shift-system-4f00b",
+                    storageBucket: "shift-system-4f00b.firebasestorage.app",
+                    messagingSenderId: "190445401565",
+                    appId: "1:190445401565:web:791070c3251a86a3d23234"
+                };
+
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                
+                const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'shift-finance-app';
+                let userId = null;
+
+                // Sign in anonymously to your specific Firebase project
+                await signInAnonymously(auth);
+                userId = auth.currentUser.uid;
+                
+                // Expose methods for UI logic to use
+                fbAddRecord = async (record) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'records', record.id.toString()), record); };
+                fbUpdateRecord = async (record) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'records', record.id.toString()), record); };
+                fbDeleteRecord = async (id) => { if(userId) await deleteDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'records', id.toString())); };
+                fbUpdateSettings = async (settings) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'settings', 'global'), settings); };
+                fbAddBillHistory = async (history) => { if(userId) await setDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'billHistory', history.id.toString()), history); };
+                fbDeleteBillHistory = async (id) => { if(userId) await deleteDoc(doc(db, 'artifacts', currentAppId, 'users', userId, 'billHistory', id.toString())); };
+
+                // Real-time synchronization listeners
+                onSnapshot(collection(db, 'artifacts', currentAppId, 'users', userId, 'records'), (snap) => {
+                    const records = [];
+                    snap.forEach(d => records.push(d.data()));
+                    appData.records = records;
+                    updateAllViews();
+                }, (err) => console.error(err));
+
+                onSnapshot(doc(db, 'artifacts', currentAppId, 'users', userId, 'settings', 'global'), (docSnap) => {
+                    if(docSnap.exists()) {
+                        appData.settings = docSnap.data();
+                        applySettingsLogo();
+                    }
+                }, (err) => console.error(err));
+
+                onSnapshot(collection(db, 'artifacts', currentAppId, 'users', userId, 'billHistory'), (snap) => {
+                    const history = [];
+                    snap.forEach(d => history.push(d.data()));
+                    history.sort((a,b) => b.id - a.id); // Descending order
+                    appData.billHistory = history;
+                    renderBillHistory();
+                }, (err) => console.error(err));
+                
+            } catch (err) {
+                console.error("Firebase Initialization Error:", err);
+            }
+        })();
+
+        let chartLakInstance = null;
+        let chartUsdThbInstance = null;
+
+        const billDenominations = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500];
+
+        // Formatters
+        function formatNumber(val) { return new Intl.NumberFormat('en-US', {maximumFractionDigits: 2}).format(val || 0); }
+        function formatLAK(val) { return '₭ ' + new Intl.NumberFormat('en-US', {maximumFractionDigits: 0}).format(val || 0); }
+        function formatUSD(val) { return '$ ' + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val || 0); }
+        function formatBAHT(val) { return '฿ ' + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val || 0); }
+        function formatDate(dateString) { return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }); }
+
+        function createCurrencyStack(lak, usd, baht, customClass = "text-slate-800 font-medium") {
+            return `
+                <div class="flex flex-col gap-1.5 w-full">
+                    <div class="text-sm ${customClass} flex justify-between"><span class="text-xs text-slate-400 mr-2">LAK</span> <span>${formatLAK(lak)}</span></div>
+                    <div class="text-sm ${customClass} flex justify-between"><span class="text-xs text-slate-400 mr-2">USD</span> <span>${formatUSD(usd)}</span></div>
+                    <div class="text-sm ${customClass} flex justify-between"><span class="text-xs text-slate-400 mr-2">THB</span> <span>${formatBAHT(baht)}</span></div>
+                </div>
+            `;
+        }
+
+        // Input Formatting Core
+        function formatMoneyInput(e) {
+            let val = e.target.value.replace(/,/g, '');
+            if (/[^0-9.]/.test(val)) { val = val.replace(/[^0-9.]/g, ''); }
+            let parts = val.split('.');
+            if (parts.length > 2) parts = [parts[0], parts.slice(1).join('')];
+            if (parts[0].length > 0) { parts[0] = parseInt(parts[0], 10).toLocaleString('en-US'); }
+            e.target.value = parts.join('.');
+            calculateLiveTotals();
+        }
+
+        function getRawVal(id) {
+            const el = document.getElementById(id);
+            if (!el) return 0;
+            const val = el.value.replace(/,/g, '');
+            return parseFloat(val) || 0;
+        }
+
+        function setFormattedVal(id, val) {
+            if(val === 0 || val === '') {
+                document.getElementById(id).value = '';
+            } else {
+                document.getElementById(id).value = formatNumber(val);
+            }
+        }
+
+        // Date & Week Logic
+        function getMostRecentSunday() {
+            const d = new Date();
+            const diff = d.getDate() - d.getDay();
+            return new Date(d.setDate(diff)).toISOString().split('T')[0];
+        }
+
+        function getTodayDate() { return new Date().toISOString().split('T')[0]; }
+
+        function updateWeekName() {
+            const dateInput = document.getElementById('entry-date').value;
+            if (!dateInput) return;
+            const d = new Date(dateInput);
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            document.getElementById('entry-week').value = `${monthNames[d.getMonth()]} Week ${Math.ceil(d.getDate() / 7)}`;
+        }
+
+        function calculateLiveTotals() {
+            const lak = (getRawVal('off-lak') + getRawVal('tithe-lak')) - getRawVal('ded-lak');
+            const usd = (getRawVal('off-usd') + getRawVal('tithe-usd')) - getRawVal('ded-usd');
+            const baht = (getRawVal('off-baht') + getRawVal('tithe-baht')) - getRawVal('ded-baht');
+            
+            document.getElementById('live-lak').textContent = formatLAK(lak);
+            document.getElementById('live-usd').textContent = formatUSD(usd);
+            document.getElementById('live-baht').textContent = formatBAHT(baht);
+        }
+
+        // Init
+        window.onload = () => {
+            document.getElementById('copyright-year').textContent = new Date().getFullYear();
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('dashboard-date-badge').textContent = new Date().toLocaleDateString('en-US', options);
+
+            document.getElementById('entry-date').value = getMostRecentSunday();
+            document.getElementById('deduct-date').value = getTodayDate();
+            updateWeekName();
+
+            buildBillCounterRows();
+            renderDashboard();
+            renderMonthlyReport();
+            renderAllRecords();
+        };
+
+        // UI Interactions
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-brand-600', 'text-white');
+                btn.classList.add('text-slate-300');
+            });
+            document.getElementById(tabId).classList.add('active');
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            if(activeBtn) { activeBtn.classList.remove('text-slate-300'); activeBtn.classList.add('bg-brand-600', 'text-white'); }
+            if(window.innerWidth < 768) toggleMobileMenu();
+
+            if (tabId === 'dashboard') renderDashboard();
+            if (tabId === 'monthly-report') renderMonthlyReport();
+            if (tabId === 'all-records') renderAllRecords();
+        }
+
+        function switchInnerTab(type) {
+            document.querySelectorAll('.inner-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.inner-tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`inner-tab-${type}`).classList.add('active');
+            document.getElementById(`form-${type}`).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        // Submissions
+        function submitWeeklyEntry(e) {
+            e.preventDefault();
+            const newRecord = {
+                id: Date.now(),
+                type: 'weekly',
+                date: document.getElementById('entry-date').value,
+                weekName: document.getElementById('entry-week').value,
+                offering: { lak: getRawVal('off-lak'), usd: getRawVal('off-usd'), baht: getRawVal('off-baht') },
+                tithe: { lak: getRawVal('tithe-lak'), usd: getRawVal('tithe-usd'), baht: getRawVal('tithe-baht') },
+                deduction: { lak: getRawVal('ded-lak'), usd: getRawVal('ded-usd'), baht: getRawVal('ded-baht') },
+                notes: document.getElementById('entry-desc').value || 'Weekly Collection'
+            };
+            
+            if (fbAddRecord) fbAddRecord(newRecord);
+            else appData.records.push(newRecord);
+
+            showToast('Weekly record saved!');
+            
+            ['off-lak', 'off-usd', 'off-baht', 'tithe-lak', 'tithe-usd', 'tithe-baht', 'ded-lak', 'ded-usd', 'ded-baht', 'entry-desc'].forEach(id => document.getElementById(id).value = '');
+            calculateLiveTotals();
+            updateAllViews();
+        }
+
+        function submitGeneralDeduction(e) {
+            e.preventDefault();
+            const newRecord = {
+                id: Date.now(),
+                type: 'general-deduction',
+                date: document.getElementById('deduct-date').value,
+                weekName: 'General Deduction',
+                offering: { lak: 0, usd: 0, baht: 0 },
+                tithe: { lak: 0, usd: 0, baht: 0 },
+                deduction: { lak: getRawVal('gen-ded-lak'), usd: getRawVal('gen-ded-usd'), baht: getRawVal('gen-ded-baht') },
+                notes: document.getElementById('deduct-desc').value
+            };
+            
+            if (fbAddRecord) fbAddRecord(newRecord);
+            else appData.records.push(newRecord);
+
+            showToast('General Deduction applied!');
+            ['gen-ded-lak', 'gen-ded-usd', 'gen-ded-baht', 'deduct-desc'].forEach(id => document.getElementById(id).value = '');
+            updateAllViews();
+        }
+
+        function updateAllViews() {
+            if(document.getElementById('dashboard').classList.contains('active')) renderDashboard();
+            if(document.getElementById('monthly-report').classList.contains('active')) renderMonthlyReport();
+            if(document.getElementById('all-records').classList.contains('active')) renderAllRecords();
+        }
+
+        // Mini Calculator
+        let currentCalcInputId = null;
+        let calcExpr = '';
+        
+        function openCalc(inputId) {
+            currentCalcInputId = inputId;
+            calcExpr = document.getElementById(inputId).value.replace(/,/g, '');
+            document.getElementById('calc-display').value = calcExpr || '0';
+            openModal('calculator-modal');
+        }
+
+        function calcAction(val) {
+            if(val === 'C') { calcExpr = ''; }
+            else if(val === '=') {
+                try {
+                    // Safe basic evaluation
+                    const result = new Function('return ' + (calcExpr || '0'))();
+                    calcExpr = result.toString();
+                    
+                    // Apply back to input
+                    if(currentCalcInputId) {
+                        setFormattedVal(currentCalcInputId, parseFloat(result));
+                        if(document.getElementById('edit-modal').classList.contains('active')) {
+                            // in edit modal
+                        } else {
+                            calculateLiveTotals();
+                        }
+                    }
+                    closeModal('calculator-modal');
+                } catch(e) { calcExpr = 'Error'; }
+            }
+            else {
+                if(calcExpr === 'Error') calcExpr = '';
+                calcExpr += val;
+            }
+            if(val !== '=') document.getElementById('calc-display').value = calcExpr || '0';
+        }
+
+        // Bill Counter
+        function buildBillCounterRows() {
+            const container = document.getElementById('bill-rows-container');
+            container.innerHTML = '';
+            billDenominations.forEach(denom => {
+                container.innerHTML += `
+                    <div class="grid grid-cols-[100px_1fr_120px] gap-4 items-center">
+                        <div class="font-bold text-slate-700 bg-slate-100 py-2 px-3 rounded-lg text-center border border-slate-200">${formatNumber(denom)}</div>
+                        <input type="number" id="bill-qty-${denom}" min="0" oninput="calculateBillRow(${denom})" placeholder="0" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
+                        <input type="text" id="bill-tot-${denom}" readonly placeholder="0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none text-right font-bold text-brand-600">
+                    </div>
+                `;
+            });
+        }
+
+        function openBillModal() {
+            clearBillCounter();
+            switchBillTab('counter');
+            openModal('bill-modal');
+        }
+
+        function switchBillTab(tab) {
+            document.getElementById('b-tab-counter').classList.replace(tab==='counter'?'text-slate-500':'text-brand-600', tab==='counter'?'text-brand-600':'text-slate-500');
+            document.getElementById('b-tab-counter').classList.replace(tab==='counter'?'border-transparent':'border-brand-500', tab==='counter'?'border-brand-500':'border-transparent');
+            document.getElementById('b-tab-history').classList.replace(tab==='history'?'text-slate-500':'text-brand-600', tab==='history'?'text-brand-600':'text-slate-500');
+            document.getElementById('b-tab-history').classList.replace(tab==='history'?'border-transparent':'border-brand-500', tab==='history'?'border-brand-500':'border-transparent');
+            
+            document.getElementById('bill-tab-counter').style.display = tab==='counter'?'block':'none';
+            document.getElementById('bill-tab-history').style.display = tab==='history'?'block':'none';
+            if(tab === 'history') renderBillHistory();
+        }
+
+        function calculateBillRow(denom) {
+            const qty = parseInt(document.getElementById(`bill-qty-${denom}`).value) || 0;
+            const total = qty * denom;
+            document.getElementById(`bill-tot-${denom}`).value = formatNumber(total);
+            
+            let gTotal = 0;
+            billDenominations.forEach(d => {
+                gTotal += (parseInt(document.getElementById(`bill-qty-${d}`).value) || 0) * d;
+            });
+            document.getElementById('bill-grand-total').textContent = formatLAK(gTotal);
+            return gTotal;
+        }
+
+        function clearBillCounter() {
+            billDenominations.forEach(denom => {
+                document.getElementById(`bill-qty-${denom}`).value = '';
+                document.getElementById(`bill-tot-${denom}`).value = '';
+            });
+            document.getElementById('bill-grand-total').textContent = '₭ 0';
+        }
+
+        function applyBillCounter() {
+            let gTotal = 0;
+            const countDetails = [];
+            billDenominations.forEach(d => {
+                const qty = parseInt(document.getElementById(`bill-qty-${d}`).value) || 0;
+                if(qty > 0) {
+                    gTotal += qty * d;
+                    countDetails.push(`${qty}x${formatNumber(d)}`);
+                }
+            });
+
+            if(gTotal > 0) {
+                // Save to history
+                const historyObj = {
+                    id: Date.now(),
+                    date: new Date().toLocaleString(),
+                    total: gTotal,
+                    details: countDetails.join(', ')
+                };
+
+                if (fbAddBillHistory) fbAddBillHistory(historyObj);
+                else appData.billHistory.unshift(historyObj);
+
+                // Apply to form
+                setFormattedVal('off-lak', gTotal);
+                calculateLiveTotals();
+                showToast('Bill count applied & saved to history!');
+            }
+            closeModal('bill-modal');
+        }
+
+        function renderBillHistory() {
+            const container = document.getElementById('bill-history-container');
+            if(appData.billHistory.length === 0) {
+                container.innerHTML = '<div class="text-center text-slate-400 py-10">No history yet.</div>';
+                return;
+            }
+            container.innerHTML = appData.billHistory.map(h => `
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs text-slate-500 font-bold">${h.date}</span>
+                        <span class="font-bold text-brand-600">${formatLAK(h.total)}</span>
+                    </div>
+                    <div class="text-sm text-slate-600 break-words leading-relaxed">${h.details}</div>
+                </div>
+            `).join('');
+        }
+
+        // Edit Functionality
+        function openEditModal(id) {
+            const record = appData.records.find(r => r.id === id);
+            if(!record) return;
+
+            document.getElementById('edit-id').value = record.id;
+            document.getElementById('edit-type').value = record.type;
+            document.getElementById('edit-date').value = record.date;
+            document.getElementById('edit-week').value = record.weekName;
+            document.getElementById('edit-desc').value = record.notes;
+
+            if(record.type === 'weekly') {
+                document.getElementById('edit-weekly-fields').classList.remove('hidden');
+                document.getElementById('edit-general-fields').classList.add('hidden');
+                
+                setFormattedVal('edit-off-lak', record.offering.lak);
+                setFormattedVal('edit-off-usd', record.offering.usd);
+                setFormattedVal('edit-off-baht', record.offering.baht);
+                
+                setFormattedVal('edit-tithe-lak', record.tithe.lak);
+                setFormattedVal('edit-tithe-usd', record.tithe.usd);
+                setFormattedVal('edit-tithe-baht', record.tithe.baht);
+                
+                setFormattedVal('edit-ded-lak', record.deduction.lak);
+                setFormattedVal('edit-ded-usd', record.deduction.usd);
+                setFormattedVal('edit-ded-baht', record.deduction.baht);
+            } else {
+                document.getElementById('edit-weekly-fields').classList.add('hidden');
+                document.getElementById('edit-general-fields').classList.remove('hidden');
+                
+                setFormattedVal('edit-gen-lak', record.deduction.lak);
+                setFormattedVal('edit-gen-usd', record.deduction.usd);
+                setFormattedVal('edit-gen-baht', record.deduction.baht);
+            }
+
+            openModal('edit-modal');
+        }
+
+        function saveEditedRecord(e) {
+            e.preventDefault();
+            const id = parseInt(document.getElementById('edit-id').value);
+            const type = document.getElementById('edit-type').value;
+            const index = appData.records.findIndex(r => r.id === id);
+            
+            if(index !== -1) {
+                const updated = {
+                    id: id,
+                    type: type,
+                    date: document.getElementById('edit-date').value,
+                    weekName: document.getElementById('edit-week').value,
+                    notes: document.getElementById('edit-desc').value
+                };
+
+                if(type === 'weekly') {
+                    updated.offering = { lak: getRawVal('edit-off-lak'), usd: getRawVal('edit-off-usd'), baht: getRawVal('edit-off-baht') };
+                    updated.tithe = { lak: getRawVal('edit-tithe-lak'), usd: getRawVal('edit-tithe-usd'), baht: getRawVal('edit-tithe-baht') };
+                    updated.deduction = { lak: getRawVal('edit-ded-lak'), usd: getRawVal('edit-ded-usd'), baht: getRawVal('edit-ded-baht') };
+                } else {
+                    updated.offering = { lak: 0, usd: 0, baht: 0 };
+                    updated.tithe = { lak: 0, usd: 0, baht: 0 };
+                    updated.deduction = { lak: getRawVal('edit-gen-lak'), usd: getRawVal('edit-gen-usd'), baht: getRawVal('edit-gen-baht') };
+                }
+                
+                if (fbUpdateRecord) fbUpdateRecord(updated);
+                else appData.records[index] = updated;
+
+                showToast('Record updated successfully!');
+                closeModal('edit-modal');
+                updateAllViews();
+            }
+        }
+
+        function jumpToMonth(monthString) {
+            document.getElementById('search-input').value = monthString;
+            switchTab('all-records');
+        }
+
+        function renderDashboard() {
+            let tOff = { lak: 0, usd: 0, baht: 0 };
+            let tTithe = { lak: 0, usd: 0, baht: 0 };
+            let tDed = { lak: 0, usd: 0, baht: 0 };
+
+            appData.records.forEach(r => {
+                tOff.lak += r.offering.lak; tOff.usd += r.offering.usd; tOff.baht += r.offering.baht;
+                tTithe.lak += r.tithe.lak; tTithe.usd += r.tithe.usd; tTithe.baht += r.tithe.baht;
+                tDed.lak += r.deduction.lak; tDed.usd += r.deduction.usd; tDed.baht += r.deduction.baht;
+            });
+
+            document.getElementById('dash-card-lak-off').textContent = formatLAK(tOff.lak);
+            document.getElementById('dash-card-lak-tithe').textContent = formatLAK(tTithe.lak);
+            document.getElementById('dash-card-lak-gross').textContent = formatLAK(tOff.lak + tTithe.lak);
+            document.getElementById('dash-card-lak-ded').textContent = `-${formatLAK(tDed.lak)}`;
+            document.getElementById('dash-card-lak-net').textContent = formatLAK((tOff.lak + tTithe.lak) - tDed.lak);
+
+            document.getElementById('dash-card-usd-off').textContent = formatUSD(tOff.usd);
+            document.getElementById('dash-card-usd-tithe').textContent = formatUSD(tTithe.usd);
+            document.getElementById('dash-card-usd-gross').textContent = formatUSD(tOff.usd + tTithe.usd);
+            document.getElementById('dash-card-usd-ded').textContent = `-${formatUSD(tDed.usd)}`;
+            document.getElementById('dash-card-usd-net').textContent = formatUSD((tOff.usd + tTithe.usd) - tDed.usd);
+
+            document.getElementById('dash-card-thb-off').textContent = formatBAHT(tOff.baht);
+            document.getElementById('dash-card-thb-tithe').textContent = formatBAHT(tTithe.baht);
+            document.getElementById('dash-card-thb-gross').textContent = formatBAHT(tOff.baht + tTithe.baht);
+            document.getElementById('dash-card-thb-ded').textContent = `-${formatBAHT(tDed.baht)}`;
+            document.getElementById('dash-card-thb-net').textContent = formatBAHT((tOff.baht + tTithe.baht) - tDed.baht);
+
+            renderCharts();
+        }
+
+        function renderCharts() {
+            const sorted = [...appData.records].sort((a,b) => new Date(a.date) - new Date(b.date));
+            const labels = [];
+            const dataLak = [];
+            const dataUsd = [];
+            const dataThb = [];
+
+            sorted.forEach(r => {
+                const label = r.type === 'weekly' ? r.weekName : formatDate(r.date);
+                labels.push(label);
+                dataLak.push((r.offering.lak + r.tithe.lak) - r.deduction.lak);
+                dataUsd.push((r.offering.usd + r.tithe.usd) - r.deduction.usd);
+                dataThb.push((r.offering.baht + r.tithe.baht) - r.deduction.baht);
+            });
+
+            const ctxLak = document.getElementById('chart-lak').getContext('2d');
+            if(chartLakInstance) chartLakInstance.destroy();
+            chartLakInstance = new Chart(ctxLak, {
+                type: 'line',
+                data: { labels: labels.length ? labels : ['No Data'], datasets: [{ label: 'Net LAK', data: dataLak.length ? dataLak : [0], borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.1)', borderWidth: 2, fill: true, tension: 0.3, pointBackgroundColor: '#fff', pointBorderColor: '#2563eb', pointRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+
+            const ctxUsdThb = document.getElementById('chart-usd-thb').getContext('2d');
+            if(chartUsdThbInstance) chartUsdThbInstance.destroy();
+            chartUsdThbInstance = new Chart(ctxUsdThb, {
+                type: 'bar',
+                data: { labels: labels.length ? labels : ['No Data'], datasets: [ { label: 'Net USD', data: dataUsd.length ? dataUsd : [0], backgroundColor: '#16a34a' }, { label: 'Net THB', data: dataThb.length ? dataThb : [0], backgroundColor: '#f97316' } ] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+            });
+        }
+
+        function renderMonthlyReport() {
+            const tbody = document.getElementById('monthly-report-body');
+            tbody.innerHTML = '';
+            if (appData.records.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-10 text-center text-slate-400 italic">No data available.</td></tr>`;
+                return;
+            }
+
+            const reports = {};
+            appData.records.forEach(r => {
+                const d = new Date(r.date);
+                const rawMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                if (!reports[rawMonth]) {
+                    reports[rawMonth] = { raw: rawMonth, monthName: d.toLocaleString('default', { month: 'long', year: 'numeric' }), offering: {lak:0, usd:0, baht:0}, tithe: {lak:0, usd:0, baht:0}, deduction: {lak:0, usd:0, baht:0} };
+                }
+                ['lak', 'usd', 'baht'].forEach(c => {
+                    reports[rawMonth].offering[c] += r.offering[c];
+                    reports[rawMonth].tithe[c] += r.tithe[c];
+                    reports[rawMonth].deduction[c] += r.deduction[c];
+                });
+            });
+
+            Object.keys(reports).sort((a,b) => b.localeCompare(a)).forEach(key => {
+                const data = reports[key];
+                const net = { lak: (data.offering.lak + data.tithe.lak) - data.deduction.lak, usd: (data.offering.usd + data.tithe.usd) - data.deduction.usd, baht: (data.offering.baht + data.tithe.baht) - data.deduction.baht };
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="py-5 px-6 font-bold text-slate-800 align-top">${data.monthName}</td>
+                        <td class="py-5 px-6 align-top">${createCurrencyStack(data.offering.lak, data.offering.usd, data.offering.baht, 'text-blue-700')}</td>
+                        <td class="py-5 px-6 align-top">${createCurrencyStack(data.tithe.lak, data.tithe.usd, data.tithe.baht, 'text-emerald-700')}</td>
+                        <td class="py-5 px-6 align-top">${createCurrencyStack(data.deduction.lak, data.deduction.usd, data.deduction.baht, 'text-rose-700')}</td>
+                        <td class="py-5 px-6 align-top">${createCurrencyStack(net.lak, net.usd, net.baht, 'font-bold text-slate-900 text-right')}</td>
+                        <td class="py-5 px-6 align-middle text-center">
+                            <button onclick="jumpToMonth('${data.raw}')" class="text-slate-500 hover:text-brand-600 p-2 rounded-lg hover:bg-brand-50 transition-colors font-semibold text-xs flex flex-col items-center gap-1 mx-auto" title="View & Edit Records">
+                                <i class="ph ph-folder-open text-xl"></i> View
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderAllRecords() {
+            const tbody = document.getElementById('all-records-body');
+            const emptyState = document.getElementById('empty-state');
+            const searchInput = document.getElementById('search-input').value.toLowerCase();
+            
+            tbody.innerHTML = '';
+            const sorted = [...appData.records].sort((a,b) => new Date(b.date) - new Date(a.date));
+            const filtered = sorted.filter(r => r.notes.toLowerCase().includes(searchInput) || r.date.includes(searchInput) || r.weekName.toLowerCase().includes(searchInput));
+
+            if (filtered.length === 0) {
+                tbody.parentElement.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                tbody.parentElement.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+            }
+
+            filtered.forEach(r => {
+                const net = { lak: (r.offering.lak + r.tithe.lak) - r.deduction.lak, usd: (r.offering.usd + r.tithe.usd) - r.deduction.usd, baht: (r.offering.baht + r.tithe.baht) - r.deduction.baht };
+                const badge = r.type === 'general-deduction' 
+                    ? `<span class="bg-rose-100 text-rose-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Gen Deduction</span>`
+                    : `<span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Weekly</span>`;
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors group">
+                        <td class="py-5 px-6 align-top">
+                            <div class="flex items-center gap-2 mb-1">${badge}</div>
+                            <div class="font-bold text-slate-800 text-sm">${formatDate(r.date)}</div>
+                            <div class="text-xs font-bold text-brand-600 mt-0.5">${r.weekName}</div>
+                            <div class="text-xs text-slate-500 mt-2 line-clamp-2">${r.notes}</div>
+                        </td>
+                        <td class="py-5 px-6 align-top">${r.type==='general-deduction' ? '<span class="text-slate-300">-</span>' : createCurrencyStack(r.offering.lak, r.offering.usd, r.offering.baht, 'text-slate-600')}</td>
+                        <td class="py-5 px-6 align-top">${r.type==='general-deduction' ? '<span class="text-slate-300">-</span>' : createCurrencyStack(r.tithe.lak, r.tithe.usd, r.tithe.baht, 'text-slate-600')}</td>
+                        <td class="py-5 px-6 align-top">${createCurrencyStack(r.deduction.lak, r.deduction.usd, r.deduction.baht, 'text-rose-600')}</td>
+                        <td class="py-5 px-6 align-top">${createCurrencyStack(net.lak, net.usd, net.baht, r.type==='general-deduction' ? 'font-bold text-rose-600 text-right' : 'font-bold text-slate-900 text-right')}</td>
+                        <td class="py-5 px-6 align-middle text-center">
+                            <div class="flex justify-center gap-1">
+                                <button onclick="openEditModal(${r.id})" class="text-slate-400 hover:text-brand-600 p-2 rounded-lg hover:bg-brand-50 transition-colors" title="Edit">
+                                    <i class="ph ph-pencil-simple text-lg"></i>
+                                </button>
+                                <button onclick="deleteRecord(${r.id})" class="text-slate-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors" title="Delete">
+                                    <i class="ph ph-trash text-lg"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function deleteRecord(id) {
+            if (fbDeleteRecord) fbDeleteRecord(id);
+            else appData.records = appData.records.filter(r => r.id !== id);
+
+            showToast('Record deleted');
+            updateAllViews();
+        }
+
+        // Settings
+        function handleLogoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                
+                if (fbUpdateSettings) fbUpdateSettings({ logo: dataUrl });
+                else {
+                    appData.settings.logo = dataUrl;
+                    applySettingsLogo();
+                }
+                showToast('Custom logo applied!');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function applySettingsLogo() {
+            if (!appData.settings.logo) return;
+            const dataUrl = appData.settings.logo;
+            document.getElementById('dynamic-favicon').href = dataUrl;
+            document.getElementById('dynamic-apple-icon').href = dataUrl;
+            document.getElementById('preview-default').classList.add('hidden');
+            document.getElementById('preview-img').src = dataUrl; document.getElementById('preview-img').classList.remove('hidden');
+            document.getElementById('desktop-default-icon').classList.add('hidden');
+            document.getElementById('desktop-logo-container').classList.replace('bg-brand-500', 'bg-white');
+            document.getElementById('desktop-custom-logo').src = dataUrl; document.getElementById('desktop-custom-logo').classList.remove('hidden');
+            document.getElementById('mobile-default-icon').classList.add('hidden');
+            document.getElementById('mobile-logo-container').classList.replace('bg-brand-500', 'bg-white');
+            document.getElementById('mobile-custom-logo').src = dataUrl; document.getElementById('mobile-custom-logo').classList.remove('hidden');
+        }
+
+        function requestClearData() { openModal('confirm-modal'); }
+        function closeConfirmModal() { closeModal('confirm-modal'); }
+        function executeClearData() {
+            if (fbDeleteRecord) {
+                // Delete everything from the cloud, listener will sync removal locally
+                appData.records.forEach(r => fbDeleteRecord(r.id));
+                appData.billHistory.forEach(h => fbDeleteBillHistory(h.id));
+            } else {
+                appData.records = [];
+                appData.billHistory = [];
+            }
+            
+            closeConfirmModal();
+            updateAllViews();
+            showToast('All financial records deleted');
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+</html>
